@@ -54,9 +54,6 @@ public class SwarpCommandHandler {
         this.plugin = plugin;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp create <n>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "create", minArgs = 1, usage = "create <n>", permission = "swarp.create")
     public void create(Player player, String[] args) {
@@ -67,10 +64,6 @@ public class SwarpCommandHandler {
         }
         workerFactory.submit(WarpTask.create(player, name));
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp delete <n>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "delete", minArgs = 1, usage = "delete <n>")
     @RequiresPermission("swarp.delete")
@@ -85,10 +78,6 @@ public class SwarpCommandHandler {
         }
         workerFactory.submit(WarpTask.delete(player, warp.get()));
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp tp <n>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "tp", minArgs = 1, usage = "tp <n>", permission = "swarp.teleport")
     public void teleport(Player player, String[] args) {
@@ -109,10 +98,6 @@ public class SwarpCommandHandler {
         cooldown.registerTeleport(player.getUniqueId());
         workerFactory.submit(WarpTask.teleport(player, warp.get()));
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp list [category]
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "list", usage = "list [category]", permission = "swarp.list")
     public void list(Player player, String[] args) {
@@ -151,10 +136,6 @@ public class SwarpCommandHandler {
                 ));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp search <keyword>
-    // ──────────────────────────────────────────────────────────────────────────
-
     @WarpCommand(value = "search", minArgs = 1, usage = "search <keyword>", permission = "swarp.list")
     public void search(Player player, String[] args) {
         String keyword = args[0].toLowerCase();
@@ -179,9 +160,6 @@ public class SwarpCommandHandler {
         ));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp rename <alt> <neu>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "rename", minArgs = 2, usage = "rename <alt> <neu>")
     public void rename(Player player, String[] args) {
@@ -212,10 +190,6 @@ public class SwarpCommandHandler {
         });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp desc <n> <text>
-    // ──────────────────────────────────────────────────────────────────────────
-
     @WarpCommand(value = "desc", minArgs = 2, usage = "desc <n> <text>")
     public void desc(Player player, String[] args) {
         Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), args[0]);
@@ -242,9 +216,6 @@ public class SwarpCommandHandler {
         });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp category <n> <kategorie>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "category", minArgs = 2, usage = "category <n> <shop|farm|pvp|base|public|other>")
     public void category(Player player, String[] args) {
@@ -269,9 +240,6 @@ public class SwarpCommandHandler {
         });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp expire <n> <on|off>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "expire", minArgs = 2, usage = "expire <n> <on|off>")
     public void expire(Player player, String[] args) {
@@ -310,10 +278,6 @@ public class SwarpCommandHandler {
         });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp info <n>
-    // ──────────────────────────────────────────────────────────────────────────
-
     @WarpCommand(value = "info", minArgs = 1, usage = "info <n>")
     public void info(Player player, String[] args) {
         Optional<PlayerWarp> warp = cache.getPublicByName(args[0]);
@@ -335,10 +299,6 @@ public class SwarpCommandHandler {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp mywarps
-    // ──────────────────────────────────────────────────────────────────────────
-
     @WarpCommand(value = "mywarps", usage = "mywarps")
     public void mywarps(Player player, String[] args) {
         List<PlayerWarp> warps = cache.getByOwner(player.getUniqueId());
@@ -359,10 +319,6 @@ public class SwarpCommandHandler {
                         .hoverEvent(HoverEvent.showText(Component.text("Klicken zum Löschen", NamedTextColor.RED))))
         ));
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Helper
-    // ──────────────────────────────────────────────────────────────────────────
 
     private Component field(String label, String value) {
         return Component.text("  " + label + ": ", NamedTextColor.GRAY)

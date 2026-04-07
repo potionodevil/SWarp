@@ -57,7 +57,6 @@ public final class SwarpPlugin extends JavaPlugin {
             }
         });
 
-        // Commands
         workerFactory = injector.getInstance(WarpWorkerFactory.class);
         CommandDispatcher dispatcher = new CommandDispatcher(getLogger());
         dispatcher.register(injector.getInstance(SwarpCommandHandler.class));
@@ -72,8 +71,6 @@ public final class SwarpPlugin extends JavaPlugin {
         // Listeners
         getServer().getPluginManager().registerEvents(injector.getInstance(PlayerJoinListener.class), this);
         getServer().getPluginManager().registerEvents(injector.getInstance(WarpSignListener.class), this);
-
-        // Expire worker (runs every 24h)
         injector.getInstance(WarpExpireWorker.class).schedule();
 
         getLogger().info("[SWarp] Plugin aktiviert. ✦");

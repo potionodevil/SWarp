@@ -66,7 +66,6 @@ public class WarpRepository {
             "INSERT INTO swarp_player_activity (uuid, last_seen) VALUES (?, NOW()) " +
             "ON DUPLICATE KEY UPDATE last_seen = NOW()";
 
-    // Only deletes warps where the player explicitly enabled expires = 1
     private static final String SELECT_EXPIRED_WARPS =
             "SELECT w.* FROM swarp_warps w " +
             "LEFT JOIN swarp_player_activity a ON w.owner_uuid = a.uuid " +
@@ -79,10 +78,6 @@ public class WarpRepository {
     public WarpRepository(DatabaseManager db) {
         this.db = db;
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Write
-    // ──────────────────────────────────────────────────────────────────────────
 
     @AsyncQuery("Insert a new warp")
     public int insert(PlayerWarp warp) throws SQLException {
@@ -176,9 +171,6 @@ public class WarpRepository {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Read
-    // ──────────────────────────────────────────────────────────────────────────
 
     @AsyncQuery("Load all warps for a player")
     public List<PlayerWarp> findByOwner(UUID ownerUuid) throws SQLException {
@@ -278,10 +270,6 @@ public class WarpRepository {
         }
         return result;
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Mapping
-    // ──────────────────────────────────────────────────────────────────────────
 
     private PlayerWarp mapRow(ResultSet rs) throws SQLException {
         World world = Bukkit.getWorld(rs.getString("world"));

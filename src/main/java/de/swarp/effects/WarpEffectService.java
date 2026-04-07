@@ -24,10 +24,6 @@ public class WarpEffectService {
         this.config = config;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Teleport Effects
-    // ──────────────────────────────────────────────────────────────────────────
-
     @WarpEffect(id = "teleport_arrival", displayName = "Teleport Arrival")
     public void playTeleportArrivalEffect(Player player) {
         if (!config.getBoolean("effects.teleport-particles", true)) return;
@@ -36,7 +32,6 @@ public class WarpEffectService {
         World world = loc.getWorld();
         if (world == null) return;
 
-        // Spiral of PORTAL particles around the player
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             for (int i = 0; i < 40; i++) {
                 double angle = 2 * Math.PI * i / 20.0;
@@ -48,7 +43,6 @@ public class WarpEffectService {
             }
         }, 1L);
 
-        // Flash of INSTANT_EFFECT at feet
         world.spawnParticle(Particle.INSTANT_EFFECT, loc.add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.2);
 
         if (config.getBoolean("effects.sound-on-teleport", true)) {
@@ -65,8 +59,6 @@ public class WarpEffectService {
         Location loc = player.getLocation().add(0, 1, 0);
         World world = loc.getWorld();
         if (world == null) return;
-
-        // Ring of END_ROD particles, tightening with each tick
         int count = secondsLeft * 8;
         for (int i = 0; i < count; i++) {
             double angle = 2 * Math.PI * i / count;
@@ -82,9 +74,6 @@ public class WarpEffectService {
                 0.6f, 1.0f + (0.2f * (4 - secondsLeft)));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // CRUD Effects
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpEffect(id = "warp_created", displayName = "Warp Created")
     public void playWarpCreatedEffect(Player player) {
@@ -92,10 +81,8 @@ public class WarpEffectService {
         World world = loc.getWorld();
         if (world == null) return;
 
-        // Upward burst of HAPPY_VILLAGER
         world.spawnParticle(Particle.HAPPY_VILLAGER, loc.add(0, 1, 0), 20, 0.4, 0.4, 0.4, 0.05);
 
-        // Golden star ring
         for (int i = 0; i < 16; i++) {
             double angle = 2 * Math.PI * i / 16.0;
             world.spawnParticle(Particle.END_ROD,

@@ -56,7 +56,6 @@ public class SchemaInitializer {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                     """);
 
-            // Safe migrations for existing installations
             for (String migration : new String[]{
                 "ALTER TABLE swarp_warps ADD COLUMN IF NOT EXISTS category VARCHAR(16) NOT NULL DEFAULT 'OTHER'",
                 "ALTER TABLE swarp_warps ADD COLUMN IF NOT EXISTS expires TINYINT(1) NOT NULL DEFAULT 0"

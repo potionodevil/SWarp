@@ -18,10 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Singleton
 public class WarpCacheService {
 
-    // ownerUuid → (name → warp)
     private final ConcurrentHashMap<UUID, Map<String, PlayerWarp>> byOwner = new ConcurrentHashMap<>();
-
-    // name → warp  (public warps only, first-match wins for name collisions)
     private final ConcurrentHashMap<String, PlayerWarp> publicByName = new ConcurrentHashMap<>();
 
     public void put(PlayerWarp warp) {

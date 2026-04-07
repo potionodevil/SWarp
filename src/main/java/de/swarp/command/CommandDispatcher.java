@@ -57,14 +57,12 @@ public class CommandDispatcher {
             return true;
         }
 
-        // Permission check via @RequiresPermission or WarpCommand#permission
         String perm = resolvePermission(entry);
         if (!perm.isEmpty() && !sender.hasPermission(perm)) {
             sender.sendMessage(Component.text("✗ No permission.", NamedTextColor.RED));
             return true;
         }
 
-        // Arg count check
         if (args.length < entry.meta().minArgs()) {
             sender.sendMessage(Component.text("Usage: /swarp " + entry.meta().usage(), NamedTextColor.YELLOW));
             return true;
@@ -80,7 +78,6 @@ public class CommandDispatcher {
     }
 
     private String resolvePermission(HandlerEntry entry) {
-        // Prefer @RequiresPermission if present on the method
         RequiresPermission rp = entry.method().getAnnotation(RequiresPermission.class);
         if (rp != null) return rp.value();
         return entry.meta().permission();

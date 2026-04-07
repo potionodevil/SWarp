@@ -20,7 +20,6 @@ public class SchemaInitializer {
     public void initialize() throws SQLException {
         try (Connection con = db.getConnection(); Statement stmt = con.createStatement()) {
 
-            // Main warp table
             stmt.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS swarp_warps (
                         id           INT           NOT NULL AUTO_INCREMENT,
@@ -36,17 +35,18 @@ public class SchemaInitializer {
                         description  VARCHAR(128)  NOT NULL DEFAULT '',
                         category     VARCHAR(16)   NOT NULL DEFAULT 'OTHER',
                         public_warp  TINYINT(1)    NOT NULL DEFAULT 1,
+                        expires      TINYINT(1)    NOT NULL DEFAULT 0,
                         visits       BIGINT        NOT NULL DEFAULT 0,
                         created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         PRIMARY KEY (id),
                         UNIQUE KEY uq_owner_name (owner_uuid, name),
                         INDEX idx_public   (public_warp),
                         INDEX idx_owner    (owner_uuid),
-                        INDEX idx_category (category)
+                        INDEX idx_category (category),
+                        INDEX idx_expires  (expires)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """);
 
-            // Tracks last seen time for expire worker
             stmt.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS swarp_player_activity (
                         uuid        VARCHAR(36)  NOT NULL,
@@ -56,14 +56,13 @@ public class SchemaInitializer {
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                     """);
 
-            // Add category column to existing installations (safe to run multiple times)
-            try {
-                stmt.executeUpdate("""
-                        ALTER TABLE swarp_warps
-                        ADD COLUMN IF NOT EXISTS category VARCHAR(16) NOT NULL DEFAULT 'OTHER';
-                        """);
-            } catch (SQLException ignored) {
-                // Already exists — MySQL < 8.0 doesn't support IF NOT EXISTS on ALTER
+            // Safe migrations for existing installations
+            for (String migration : new String[]{
+                "ALTER TABLE swarp_warps ADD COLUMN IF NOT EXISTS category VARCHAR(16) NOT NULL DEFAULT 'OTHER'",
+                "ALTER TABLE swarp_warps ADD COLUMN IF NOT EXISTS expires TINYINT(1) NOT NULL DEFAULT 0"
+            }) {
+                try { stmt.executeUpdate(migration); }
+                catch (SQLException ignored) { /* already exists on older MySQL */ }
             }
         }
     }

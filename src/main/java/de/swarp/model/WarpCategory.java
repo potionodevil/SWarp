@@ -18,6 +18,8 @@ public enum WarpCategory {
         this.icon = icon;
         this.displayName = displayName;
     }
+
+    /** Parse from string, fallback to OTHER */
     public static WarpCategory fromString(String s) {
         if (s == null) return OTHER;
         try {

@@ -11,7 +11,6 @@ import org.bukkit.Location;
 import org.bukkit.World;
 
 import java.sql.*;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,8 +20,8 @@ import java.util.UUID;
 public class WarpRepository {
 
     private static final String INSERT_WARP =
-            "INSERT INTO swarp_warps (owner_uuid, owner_name, name, world, x, y, z, yaw, pitch, description, public_warp, category) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            "INSERT INTO swarp_warps (owner_uuid, owner_name, name, world, x, y, z, yaw, pitch, description, public_warp, category, expires) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SELECT_BY_OWNER =
             "SELECT * FROM swarp_warps WHERE owner_uuid = ?";
@@ -57,6 +56,9 @@ public class WarpRepository {
     private static final String UPDATE_NAME =
             "UPDATE swarp_warps SET name = ? WHERE id = ?";
 
+    private static final String UPDATE_EXPIRES =
+            "UPDATE swarp_warps SET expires = ? WHERE id = ?";
+
     private static final String COUNT_BY_OWNER =
             "SELECT COUNT(*) FROM swarp_warps WHERE owner_uuid = ?";
 
@@ -64,10 +66,12 @@ public class WarpRepository {
             "INSERT INTO swarp_player_activity (uuid, last_seen) VALUES (?, NOW()) " +
             "ON DUPLICATE KEY UPDATE last_seen = NOW()";
 
-    private static final String SELECT_EXPIRED_OWNERS =
-            "SELECT DISTINCT owner_uuid FROM swarp_warps w " +
+    // Only deletes warps where the player explicitly enabled expires = 1
+    private static final String SELECT_EXPIRED_WARPS =
+            "SELECT w.* FROM swarp_warps w " +
             "LEFT JOIN swarp_player_activity a ON w.owner_uuid = a.uuid " +
-            "WHERE a.last_seen IS NULL OR a.last_seen < DATE_SUB(NOW(), INTERVAL ? DAY)";
+            "WHERE w.expires = 1 " +
+            "AND (a.last_seen IS NULL OR a.last_seen < DATE_SUB(NOW(), INTERVAL ? DAY))";
 
     private final DatabaseManager db;
 
@@ -97,10 +101,21 @@ public class WarpRepository {
             ps.setString(10, warp.description());
             ps.setBoolean(11, warp.publicWarp());
             ps.setString(12, warp.category().name());
+            ps.setBoolean(13, warp.expires());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : -1;
             }
+        }
+    }
+
+    @AsyncQuery("Toggle expires flag for a warp")
+    public void updateExpires(int warpId, boolean expires) throws SQLException {
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(UPDATE_EXPIRES)) {
+            ps.setBoolean(1, expires);
+            ps.setInt(2, warpId);
+            ps.executeUpdate();
         }
     }
 
@@ -152,7 +167,7 @@ public class WarpRepository {
         }
     }
 
-    @AsyncQuery("Upsert last-seen timestamp for a player")
+    @AsyncQuery("Upsert last-seen for expire tracking")
     public void updateLastSeen(UUID uuid) throws SQLException {
         try (Connection con = db.getConnection();
              PreparedStatement ps = con.prepareStatement(UPSERT_LAST_SEEN)) {
@@ -201,7 +216,7 @@ public class WarpRepository {
         return result;
     }
 
-    @AsyncQuery("Filter public warps by category")
+    @AsyncQuery("Filter by category")
     public List<PlayerWarp> findByCategory(WarpCategory category) throws SQLException {
         List<PlayerWarp> result = new ArrayList<>();
         try (Connection con = db.getConnection();
@@ -214,7 +229,7 @@ public class WarpRepository {
         return result;
     }
 
-    @AsyncQuery("Search warps by keyword in name and description")
+    @AsyncQuery("Search by keyword")
     public List<PlayerWarp> search(String keyword) throws SQLException {
         String pattern = "%" + keyword + "%";
         List<PlayerWarp> result = new ArrayList<>();
@@ -251,14 +266,14 @@ public class WarpRepository {
         }
     }
 
-    @AsyncQuery("Find owner UUIDs inactive for more than N days")
-    public List<UUID> findExpiredOwners(int daysInactive) throws SQLException {
-        List<UUID> result = new ArrayList<>();
+    @AsyncQuery("Find warps with expires=true from inactive players")
+    public List<PlayerWarp> findExpiredWarps(int daysInactive) throws SQLException {
+        List<PlayerWarp> result = new ArrayList<>();
         try (Connection con = db.getConnection();
-             PreparedStatement ps = con.prepareStatement(SELECT_EXPIRED_OWNERS)) {
+             PreparedStatement ps = con.prepareStatement(SELECT_EXPIRED_WARPS)) {
             ps.setInt(1, daysInactive);
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) result.add(UUID.fromString(rs.getString("owner_uuid")));
+                while (rs.next()) result.add(mapRow(rs));
             }
         }
         return result;
@@ -274,8 +289,6 @@ public class WarpRepository {
                 rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"),
                 rs.getFloat("yaw"), rs.getFloat("pitch"));
 
-        String categoryStr = rs.getString("category");
-
         return PlayerWarp.builder()
                 .id(rs.getInt("id"))
                 .ownerUuid(UUID.fromString(rs.getString("owner_uuid")))
@@ -286,7 +299,8 @@ public class WarpRepository {
                 .publicWarp(rs.getBoolean("public_warp"))
                 .visits(rs.getLong("visits"))
                 .createdAt(rs.getTimestamp("created_at").toInstant())
-                .category(WarpCategory.fromString(categoryStr))
+                .category(WarpCategory.fromString(rs.getString("category")))
+                .expires(rs.getBoolean("expires"))
                 .build();
     }
 }

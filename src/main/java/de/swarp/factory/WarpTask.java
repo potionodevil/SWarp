@@ -1,56 +1,30 @@
 package de.swarp.factory;
 
 import de.swarp.model.PlayerWarp;
-import lombok.Builder;
-import lombok.Data;
 import org.bukkit.entity.Player;
 
 /**
- * Immutable value object describing a single teleport job.
+ * Immutable value object describing a single warp job.
  * Passed from the factory to the worker for processing.
  */
-@Data
-@Builder
-public class WarpTask {
-
-    public enum Type {
-        TELEPORT,
-        CREATE,
-        DELETE
-    }
-
-    private final Type type;
-    private final Player player;
-    private final PlayerWarp targetWarp;   // null for CREATE tasks before persistence
-    private final String warpName;         // used for CREATE / lookup
-    private final long createdAt;
+public record WarpTask(
+        Type type,
+        Player player,
+        PlayerWarp targetWarp,   // null for CREATE tasks before persistence
+        String warpName,
+        long createdAt
+) {
+    public enum Type { TELEPORT, CREATE, DELETE }
 
     public static WarpTask teleport(Player player, PlayerWarp warp) {
-        return WarpTask.builder()
-                .type(Type.TELEPORT)
-                .player(player)
-                .targetWarp(warp)
-                .warpName(warp.getName())
-                .createdAt(System.currentTimeMillis())
-                .build();
+        return new WarpTask(Type.TELEPORT, player, warp, warp.name(), System.currentTimeMillis());
     }
 
     public static WarpTask create(Player player, String name) {
-        return WarpTask.builder()
-                .type(Type.CREATE)
-                .player(player)
-                .warpName(name)
-                .createdAt(System.currentTimeMillis())
-                .build();
+        return new WarpTask(Type.CREATE, player, null, name, System.currentTimeMillis());
     }
 
     public static WarpTask delete(Player player, PlayerWarp warp) {
-        return WarpTask.builder()
-                .type(Type.DELETE)
-                .player(player)
-                .targetWarp(warp)
-                .warpName(warp.getName())
-                .createdAt(System.currentTimeMillis())
-                .build();
+        return new WarpTask(Type.DELETE, player, warp, warp.name(), System.currentTimeMillis());
     }
 }

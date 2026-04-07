@@ -19,6 +19,16 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.sql.SQLException;
 import java.util.logging.Level;
 
+/**
+ * Plugin entry point.
+ *
+ * Bootstrap order:
+ *  1. Load config
+ *  2. Build Guice injector
+ *  3. Initialise DB schema
+ *  4. Load all public warps into cache
+ *  5. Register commands & listeners
+ */
 public final class SwarpPlugin extends JavaPlugin {
 
     private Injector injector;
@@ -28,9 +38,15 @@ public final class SwarpPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+
+        // ── 1. Config ──────────────────────────────────────────────────────────
         PluginConfig pluginConfig = new PluginConfig();
         pluginConfig.reload(getConfig());
+
+        // ── 2. Guice ───────────────────────────────────────────────────────────
         injector = Guice.createInjector(new SwarpModule(this, pluginConfig));
+
+        // ── 3. Database ────────────────────────────────────────────────────────
         databaseManager = injector.getInstance(DatabaseManager.class);
         try {
             injector.getInstance(SchemaInitializer.class).initialize();
@@ -39,6 +55,8 @@ public final class SwarpPlugin extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+
+        // ── 4. Warm cache with all public warps ────────────────────────────────
         WarpRepository repository = injector.getInstance(WarpRepository.class);
         WarpCacheService cache    = injector.getInstance(WarpCacheService.class);
 
@@ -50,6 +68,8 @@ public final class SwarpPlugin extends JavaPlugin {
                 getLogger().log(Level.WARNING, "Failed to pre-load warp cache", e);
             }
         });
+
+        // ── 5. Commands ────────────────────────────────────────────────────────
         workerFactory = injector.getInstance(WarpWorkerFactory.class);
 
         CommandDispatcher dispatcher = new CommandDispatcher(getLogger());
@@ -61,6 +81,8 @@ public final class SwarpPlugin extends JavaPlugin {
             cmd.setExecutor(executor);
             cmd.setTabCompleter(executor);
         }
+
+        // ── 6. Listeners ───────────────────────────────────────────────────────
         getServer().getPluginManager().registerEvents(
                 injector.getInstance(PlayerJoinListener.class), this);
 

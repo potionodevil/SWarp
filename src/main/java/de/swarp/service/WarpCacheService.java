@@ -17,15 +17,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Singleton
 public class WarpCacheService {
+
+    // ownerUuid → (name → warp)
     private final ConcurrentHashMap<UUID, Map<String, PlayerWarp>> byOwner = new ConcurrentHashMap<>();
+
+    // name → warp  (public warps only, first-match wins for name collisions)
     private final ConcurrentHashMap<String, PlayerWarp> publicByName = new ConcurrentHashMap<>();
 
     public void put(PlayerWarp warp) {
-        byOwner.computeIfAbsent(warp.getOwnerUuid(), k -> new ConcurrentHashMap<>())
-               .put(warp.getName().toLowerCase(), warp);
+        byOwner.computeIfAbsent(warp.ownerUuid(), k -> new ConcurrentHashMap<>())
+               .put(warp.name().toLowerCase(), warp);
 
-        if (warp.isPublicWarp()) {
-            publicByName.putIfAbsent(warp.getName().toLowerCase(), warp);
+        if (warp.publicWarp()) {
+            publicByName.putIfAbsent(warp.name().toLowerCase(), warp);
         }
     }
 
@@ -34,20 +38,20 @@ public class WarpCacheService {
     }
 
     public void remove(PlayerWarp warp) {
-        Map<String, PlayerWarp> ownerMap = byOwner.get(warp.getOwnerUuid());
+        Map<String, PlayerWarp> ownerMap = byOwner.get(warp.ownerUuid());
         if (ownerMap != null) {
-            ownerMap.remove(warp.getName().toLowerCase());
+            ownerMap.remove(warp.name().toLowerCase());
         }
-        publicByName.remove(warp.getName().toLowerCase());
+        publicByName.remove(warp.name().toLowerCase());
     }
 
     public void updateVisits(PlayerWarp updated) {
-        Map<String, PlayerWarp> ownerMap = byOwner.get(updated.getOwnerUuid());
+        Map<String, PlayerWarp> ownerMap = byOwner.get(updated.ownerUuid());
         if (ownerMap != null) {
-            ownerMap.put(updated.getName().toLowerCase(), updated);
+            ownerMap.put(updated.name().toLowerCase(), updated);
         }
-        if (updated.isPublicWarp()) {
-            publicByName.put(updated.getName().toLowerCase(), updated);
+        if (updated.publicWarp()) {
+            publicByName.put(updated.name().toLowerCase(), updated);
         }
     }
 
@@ -75,8 +79,8 @@ public class WarpCacheService {
         Map<String, PlayerWarp> removed = byOwner.remove(ownerUuid);
         if (removed != null) {
             removed.values().stream()
-                    .filter(PlayerWarp::isPublicWarp)
-                    .forEach(w -> publicByName.remove(w.getName().toLowerCase()));
+                    .filter(PlayerWarp::publicWarp)
+                    .forEach(w -> publicByName.remove(w.name().toLowerCase()));
         }
     }
 }

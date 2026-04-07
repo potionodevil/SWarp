@@ -1,7 +1,5 @@
 package de.swarp.model;
 
-import lombok.Builder;
-import lombok.Data;
 import org.bukkit.Location;
 
 import java.time.Instant;
@@ -9,52 +7,62 @@ import java.util.UUID;
 
 /**
  * Immutable domain model representing a single player-owned warp.
+ *
+ * Declared as a record: the compiler auto-generates the canonical constructor,
+ * accessors (id(), ownerUuid(), …), equals(), hashCode(), and toString().
+ * No Lombok needed.
  */
-@Data
-@Builder
-public class PlayerWarp {
-
-    /** Unique warp ID (primary key in DB) */
-    private final int id;
-
-    /** Owner's UUID */
-    private final UUID ownerUuid;
-
-    /** Owner's name at time of creation (cached for display) */
-    private final String ownerName;
-
-    /** Unique warp name chosen by the player */
-    private final String name;
-
-    /** The teleport destination */
-    private final Location location;
-
-    /** Optional short description of the warp (e.g. "Diamond Shop") */
-    private final String description;
-
-    /** Whether the warp is publicly visible */
-    private final boolean publicWarp;
-
-    /** Visit counter — incremented on every successful teleport */
-    private final long visits;
-
-    /** When the warp was originally created */
-    private final Instant createdAt;
+public record PlayerWarp(
+        /** Primary key in DB; -1 before first persist */
+        int id,
+        UUID ownerUuid,
+        String ownerName,
+        String name,
+        Location location,
+        String description,
+        boolean publicWarp,
+        long visits,
+        Instant createdAt
+) {
 
     /**
-     * Returns a copy of this warp with the visit count incremented by 1.
+     * Returns a copy of this record with the visit count incremented by 1.
+     * Records are immutable, so we construct a new instance.
      */
     public PlayerWarp withIncrementedVisits() {
-        return PlayerWarp.builder()
-                .id(id)
-                .ownerUuid(ownerUuid)
-                .ownerName(ownerName)
-                .name(name)
-                .location(location)
-                .description(description)
-                .publicWarp(publicWarp)
-                .visits(visits + 1)
-                .createdAt(createdAt)
-                .build();
+        return new PlayerWarp(id, ownerUuid, ownerName, name, location,
+                description, publicWarp, visits + 1, createdAt);
+    }
+
+    /**
+     * Fluent builder for readable construction sites (e.g. in WarpRepository).
+     */
+    public static Builder builder() { return new Builder(); }
+
+    public static final class Builder {
+        private int id = -1;
+        private UUID ownerUuid;
+        private String ownerName;
+        private String name;
+        private Location location;
+        private String description = "";
+        private boolean publicWarp = true;
+        private long visits = 0;
+        private Instant createdAt = Instant.now();
+
+        public Builder id(int id)                   { this.id = id;                 return this; }
+        public Builder ownerUuid(UUID v)            { this.ownerUuid = v;           return this; }
+        public Builder ownerName(String v)          { this.ownerName = v;           return this; }
+        public Builder name(String v)               { this.name = v;                return this; }
+        public Builder location(Location v)         { this.location = v;            return this; }
+        public Builder description(String v)        { this.description = v;         return this; }
+        public Builder publicWarp(boolean v)        { this.publicWarp = v;          return this; }
+        public Builder visits(long v)               { this.visits = v;              return this; }
+        public Builder createdAt(Instant v)         { this.createdAt = v;           return this; }
+
+        public PlayerWarp build() {
+            return new PlayerWarp(id, ownerUuid, ownerName, name, location,
+                    description, publicWarp, visits, createdAt);
+        }
     }
 }

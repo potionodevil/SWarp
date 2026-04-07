@@ -80,6 +80,7 @@ public class CommandDispatcher {
     }
 
     private String resolvePermission(HandlerEntry entry) {
+        // Prefer @RequiresPermission if present on the method
         RequiresPermission rp = entry.method().getAnnotation(RequiresPermission.class);
         if (rp != null) return rp.value();
         return entry.meta().permission();

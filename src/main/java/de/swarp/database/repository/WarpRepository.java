@@ -63,18 +63,18 @@ public class WarpRepository {
     public int insert(PlayerWarp warp) throws SQLException {
         try (Connection con = db.getConnection();
              PreparedStatement ps = con.prepareStatement(INSERT_WARP, Statement.RETURN_GENERATED_KEYS)) {
-            Location loc = warp.getLocation();
-            ps.setString(1, warp.getOwnerUuid().toString());
-            ps.setString(2, warp.getOwnerName());
-            ps.setString(3, warp.getName());
+            Location loc = warp.location();
+            ps.setString(1, warp.ownerUuid().toString());
+            ps.setString(2, warp.ownerName());
+            ps.setString(3, warp.name());
             ps.setString(4, loc.getWorld().getName());
             ps.setDouble(5, loc.getX());
             ps.setDouble(6, loc.getY());
             ps.setDouble(7, loc.getZ());
             ps.setFloat(8, loc.getYaw());
             ps.setFloat(9, loc.getPitch());
-            ps.setString(10, warp.getDescription());
-            ps.setBoolean(11, warp.isPublicWarp());
+            ps.setString(10, warp.description());
+            ps.setBoolean(11, warp.publicWarp());
             ps.executeUpdate();
 
             try (ResultSet keys = ps.getGeneratedKeys()) {

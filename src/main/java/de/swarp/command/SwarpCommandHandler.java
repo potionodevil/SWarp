@@ -113,19 +113,19 @@ public class SwarpCommandHandler {
                 .decorate(TextDecoration.BOLD));
 
         warps.stream()
-                .sorted((a, b) -> Long.compare(b.getVisits(), a.getVisits()))
+                .sorted((a, b) -> Long.compare(b.visits(), a.visits()))
                 .forEach(w -> {
                     Component line = Component.text("  ✦ ", NamedTextColor.GOLD)
-                            .append(Component.text(w.getName(), NamedTextColor.YELLOW)
+                            .append(Component.text(w.name(), NamedTextColor.YELLOW)
                                     .decorate(TextDecoration.BOLD)
-                                    .clickEvent(ClickEvent.runCommand("/swarp tp " + w.getName()))
+                                    .clickEvent(ClickEvent.runCommand("/swarp tp " + w.name()))
                                     .hoverEvent(HoverEvent.showText(
                                             Component.text("Click to teleport!\n", NamedTextColor.GREEN)
-                                            .append(Component.text("Owner: " + w.getOwnerName() + "\n", NamedTextColor.GRAY))
-                                            .append(Component.text("Visits: " + w.getVisits(), NamedTextColor.AQUA))
+                                            .append(Component.text("Owner: " + w.ownerName() + "\n", NamedTextColor.GRAY))
+                                            .append(Component.text("Visits: " + w.visits(), NamedTextColor.AQUA))
                                     )))
-                            .append(Component.text(" by " + w.getOwnerName(), NamedTextColor.GRAY))
-                            .append(Component.text(" [" + w.getVisits() + " visits]", NamedTextColor.DARK_GRAY));
+                            .append(Component.text(" by " + w.ownerName(), NamedTextColor.GRAY))
+                            .append(Component.text(" [" + w.visits() + " visits]", NamedTextColor.DARK_GRAY));
                     player.sendMessage(line);
                 });
     }
@@ -145,13 +145,13 @@ public class SwarpCommandHandler {
 
         PlayerWarp w = warp.get();
         player.sendMessage(Component.text("─── Warp Info ───", NamedTextColor.GOLD));
-        player.sendMessage(info("Name",    w.getName()));
-        player.sendMessage(info("Owner",   w.getOwnerName()));
-        player.sendMessage(info("Visits",  String.valueOf(w.getVisits())));
-        player.sendMessage(info("World",   w.getLocation().getWorld().getName()));
-        player.sendMessage(info("Created", w.getCreatedAt().toString().substring(0, 10)));
-        if (!w.getDescription().isEmpty()) {
-            player.sendMessage(info("Desc", w.getDescription()));
+        player.sendMessage(info("Name",    w.name()));
+        player.sendMessage(info("Owner",   w.ownerName()));
+        player.sendMessage(info("Visits",  String.valueOf(w.visits())));
+        player.sendMessage(info("World",   w.location().getWorld().getName()));
+        player.sendMessage(info("Created", w.createdAt().toString().substring(0, 10)));
+        if (!w.description().isEmpty()) {
+            player.sendMessage(info("Desc", w.description()));
         }
     }
 
@@ -172,10 +172,10 @@ public class SwarpCommandHandler {
         player.sendMessage(Component.text("─── Your Warps (" + warps.size() + ") ───", NamedTextColor.GOLD));
         warps.forEach(w -> player.sendMessage(
                 Component.text("  ✦ ", NamedTextColor.GOLD)
-                .append(Component.text(w.getName(), NamedTextColor.YELLOW))
-                .append(Component.text(" — " + w.getVisits() + " visits", NamedTextColor.GRAY))
+                .append(Component.text(w.name(), NamedTextColor.YELLOW))
+                .append(Component.text(" — " + w.visits() + " visits", NamedTextColor.GRAY))
                 .append(Component.text("  [delete]", NamedTextColor.RED)
-                        .clickEvent(ClickEvent.runCommand("/swarp delete " + w.getName()))
+                        .clickEvent(ClickEvent.runCommand("/swarp delete " + w.name()))
                         .hoverEvent(HoverEvent.showText(Component.text("Click to delete this warp", NamedTextColor.RED))))
         ));
     }

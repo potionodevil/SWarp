@@ -23,6 +23,11 @@ public class WarpEffectService {
         this.plugin = plugin;
         this.config = config;
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Teleport Effects
+    // ──────────────────────────────────────────────────────────────────────────
+
     @WarpEffect(id = "teleport_arrival", displayName = "Teleport Arrival")
     public void playTeleportArrivalEffect(Player player) {
         if (!config.getBoolean("effects.teleport-particles", true)) return;
@@ -30,6 +35,8 @@ public class WarpEffectService {
         Location loc = player.getLocation();
         World world = loc.getWorld();
         if (world == null) return;
+
+        // Spiral of PORTAL particles around the player
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             for (int i = 0; i < 40; i++) {
                 double angle = 2 * Math.PI * i / 20.0;
@@ -40,7 +47,9 @@ public class WarpEffectService {
                 world.spawnParticle(Particle.PORTAL, x, y, z, 3, 0, 0, 0, 0.05);
             }
         }, 1L);
-        world.spawnParticle(Particle.SCULK_CHARGE, loc.add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.2);
+
+        // Flash of INSTANT_EFFECT at feet
+        world.spawnParticle(Particle.INSTANT_EFFECT, loc.add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.2);
 
         if (config.getBoolean("effects.sound-on-teleport", true)) {
             player.playSound(loc, Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.2f);
@@ -56,6 +65,8 @@ public class WarpEffectService {
         Location loc = player.getLocation().add(0, 1, 0);
         World world = loc.getWorld();
         if (world == null) return;
+
+        // Ring of END_ROD particles, tightening with each tick
         int count = secondsLeft * 8;
         for (int i = 0; i < count; i++) {
             double angle = 2 * Math.PI * i / count;
@@ -70,12 +81,21 @@ public class WarpEffectService {
         player.playSound(loc, Sound.BLOCK_NOTE_BLOCK_PLING,
                 0.6f, 1.0f + (0.2f * (4 - secondsLeft)));
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // CRUD Effects
+    // ──────────────────────────────────────────────────────────────────────────
+
     @WarpEffect(id = "warp_created", displayName = "Warp Created")
     public void playWarpCreatedEffect(Player player) {
         Location loc = player.getLocation();
         World world = loc.getWorld();
         if (world == null) return;
+
+        // Upward burst of HAPPY_VILLAGER
         world.spawnParticle(Particle.HAPPY_VILLAGER, loc.add(0, 1, 0), 20, 0.4, 0.4, 0.4, 0.05);
+
+        // Golden star ring
         for (int i = 0; i < 16; i++) {
             double angle = 2 * Math.PI * i / 16.0;
             world.spawnParticle(Particle.END_ROD,
@@ -96,7 +116,7 @@ public class WarpEffectService {
         World world = loc.getWorld();
         if (world == null) return;
 
-        world.spawnParticle(Particle.SMOKE, loc, 25, 0.3, 0.5, 0.3, 0.04);
+        world.spawnParticle(Particle.LARGE_SMOKE, loc, 25, 0.3, 0.5, 0.3, 0.04);
         world.spawnParticle(Particle.ASH, loc, 15, 0.5, 0.5, 0.5, 0.01);
 
         player.playSound(loc, Sound.BLOCK_GLASS_BREAK, 0.5f, 0.8f);

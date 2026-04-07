@@ -58,7 +58,7 @@ public class WarpWorker implements Runnable {
 
     @Override
     public void run() {
-        switch (task.getType()) {
+        switch (task.type()) {
             case TELEPORT -> handleTeleport();
             case CREATE   -> handleCreate();
             case DELETE   -> handleDelete();
@@ -70,10 +70,10 @@ public class WarpWorker implements Runnable {
     // ──────────────────────────────────────────────────────────────────────────
 
     private void handleTeleport() {
-        Player player = task.getPlayer();
+        Player player = task.player();
         if (!player.isOnline()) return;
 
-        PlayerWarp warp = task.getTargetWarp();
+        PlayerWarp warp = task.targetWarp();
         int delay = config.getInt("warps.teleport-delay", 3);
 
         // Countdown titles
@@ -95,12 +95,12 @@ public class WarpWorker implements Runnable {
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (!player.isOnline()) return;
 
-                Location dest = warp.getLocation();
+                Location dest = warp.location();
                 player.teleport(dest);
 
                 player.showTitle(Title.title(
-                        Component.text("✦ " + warp.getName().toUpperCase() + " ✦", NamedTextColor.GOLD),
-                        Component.text("by " + warp.getOwnerName(), NamedTextColor.GRAY),
+                        Component.text("✦ " + warp.name().toUpperCase() + " ✦", NamedTextColor.GOLD),
+                        Component.text("by " + warp.ownerName(), NamedTextColor.GRAY),
                         Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(1500), Duration.ofMillis(500))
                 ));
 
@@ -110,9 +110,9 @@ public class WarpWorker implements Runnable {
                 cacheService.updateVisits(warp.withIncrementedVisits());
                 CompletableFuture.runAsync(() -> {
                     try {
-                        repository.incrementVisits(warp.getId());
+                        repository.incrementVisits(warp.id());
                     } catch (SQLException e) {
-                        plugin.getLogger().log(Level.WARNING, "Failed to increment visits for warp " + warp.getId(), e);
+                        plugin.getLogger().log(Level.WARNING, "Failed to increment visits for warp " + warp.id(), e);
                     }
                 });
             }),
@@ -124,7 +124,7 @@ public class WarpWorker implements Runnable {
     // ──────────────────────────────────────────────────────────────────────────
 
     private void handleCreate() {
-        Player player = task.getPlayer();
+        Player player = task.player();
         if (!player.isOnline()) return;
 
         int maxWarps = config.getInt("warps.max-per-player", 3);
@@ -138,11 +138,11 @@ public class WarpWorker implements Runnable {
             }
 
             boolean nameExists = repository
-                    .findByOwnerAndName(player.getUniqueId(), task.getWarpName())
+                    .findByOwnerAndName(player.getUniqueId(), task.warpName())
                     .isPresent();
             if (nameExists) {
                 sendMain(() -> player.sendMessage(
-                        Component.text("✗ You already have a warp named \"" + task.getWarpName() + "\".", NamedTextColor.RED)));
+                        Component.text("✗ You already have a warp named \"" + task.warpName() + "\".", NamedTextColor.RED)));
                 return;
             }
 
@@ -150,7 +150,7 @@ public class WarpWorker implements Runnable {
                     .id(-1)
                     .ownerUuid(player.getUniqueId())
                     .ownerName(player.getName())
-                    .name(task.getWarpName())
+                    .name(task.warpName())
                     .location(player.getLocation().clone())
                     .description("")
                     .publicWarp(true)
@@ -161,14 +161,14 @@ public class WarpWorker implements Runnable {
             int generatedId = repository.insert(newWarp);
             PlayerWarp savedWarp = PlayerWarp.builder()
                     .id(generatedId)
-                    .ownerUuid(newWarp.getOwnerUuid())
-                    .ownerName(newWarp.getOwnerName())
-                    .name(newWarp.getName())
-                    .location(newWarp.getLocation())
-                    .description(newWarp.getDescription())
-                    .publicWarp(newWarp.isPublicWarp())
+                    .ownerUuid(newWarp.ownerUuid())
+                    .ownerName(newWarp.ownerName())
+                    .name(newWarp.name())
+                    .location(newWarp.location())
+                    .description(newWarp.description())
+                    .publicWarp(newWarp.publicWarp())
                     .visits(0)
-                    .createdAt(newWarp.getCreatedAt())
+                    .createdAt(newWarp.createdAt())
                     .build();
 
             cacheService.put(savedWarp);
@@ -177,7 +177,7 @@ public class WarpWorker implements Runnable {
                 effectService.playWarpCreatedEffect(player);
                 player.sendMessage(
                         Component.text("✔ Warp ", NamedTextColor.GREEN)
-                        .append(Component.text("\"" + savedWarp.getName() + "\"", NamedTextColor.GOLD))
+                        .append(Component.text("\"" + savedWarp.name() + "\"", NamedTextColor.GOLD))
                         .append(Component.text(" created!", NamedTextColor.GREEN)));
             });
 
@@ -192,19 +192,19 @@ public class WarpWorker implements Runnable {
     // ──────────────────────────────────────────────────────────────────────────
 
     private void handleDelete() {
-        Player player = task.getPlayer();
+        Player player = task.player();
         if (!player.isOnline()) return;
 
-        PlayerWarp warp = task.getTargetWarp();
+        PlayerWarp warp = task.targetWarp();
         try {
-            boolean deleted = repository.delete(warp.getId());
+            boolean deleted = repository.delete(warp.id());
             if (deleted) {
                 cacheService.remove(warp);
                 sendMain(() -> {
                     effectService.playWarpDeletedEffect(player);
                     player.sendMessage(
                             Component.text("✔ Warp ", NamedTextColor.GREEN)
-                            .append(Component.text("\"" + warp.getName() + "\"", NamedTextColor.GOLD))
+                            .append(Component.text("\"" + warp.name() + "\"", NamedTextColor.GOLD))
                             .append(Component.text(" deleted.", NamedTextColor.GREEN)));
                 });
             } else {

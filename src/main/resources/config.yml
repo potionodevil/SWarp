@@ -1,0 +1,21 @@
+database:
+  host: localhost
+  port: 3306
+  database: swarp
+  username: root
+  password: password
+  pool-size: 10
+  connection-timeout: 30000
+
+warps:
+  max-per-player: 3
+  teleport-delay: 3  # seconds
+  cost: 0.0          # Vault economy cost (0 = free)
+  cooldown: 10       # seconds between teleports
+
+effects:
+  teleport-particles: true
+  particle-type: PORTAL
+  sound-on-teleport: true
+  sound-on-set: true
+  countdown-titles: true

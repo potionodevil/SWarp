@@ -1,0 +1,29 @@
+name: SWarp
+version: '${project.version}'
+main: de.swarp.SwarpPlugin
+api-version: '1.21'
+description: Player Warp System for Player Shops
+author: SWarpDev
+
+commands:
+  swarp:
+    description: Main SWarp command
+    usage: /swarp <create|delete|list|teleport|info>
+    aliases: [warp, pw]
+
+permissions:
+  swarp.create:
+    description: Allows creating warps
+    default: true
+  swarp.delete:
+    description: Allows deleting own warps
+    default: true
+  swarp.teleport:
+    description: Allows teleporting to warps
+    default: true
+  swarp.list:
+    description: Allows listing all warps
+    default: true
+  swarp.admin:
+    description: Admin access (delete any warp, bypass limits)
+    default: op

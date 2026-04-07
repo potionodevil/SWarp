@@ -9,9 +9,10 @@ database:
 
 warps:
   max-per-player: 3
-  teleport-delay: 3  # seconds
-  cost: 0.0          # Vault economy cost (0 = free)
-  cooldown: 10       # seconds between teleports
+  teleport-delay: 3
+  cost: 0.0
+  cooldown: 10        # Sekunden zwischen Teleports
+  expire-days: 30     # Warps von Spielern die X Tage offline sind löschen (0 = deaktiviert)
 
 effects:
   teleport-particles: true

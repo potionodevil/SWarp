@@ -8,10 +8,12 @@ import de.swarp.command.SwarpCommandHandler;
 import de.swarp.database.DatabaseManager;
 import de.swarp.database.SchemaInitializer;
 import de.swarp.database.repository.WarpRepository;
+import de.swarp.factory.WarpExpireWorker;
 import de.swarp.factory.WarpWorkerFactory;
 import de.swarp.guice.PluginConfig;
 import de.swarp.guice.SwarpModule;
 import de.swarp.listener.PlayerJoinListener;
+import de.swarp.listener.WarpSignListener;
 import de.swarp.service.WarpCacheService;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -19,16 +21,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.sql.SQLException;
 import java.util.logging.Level;
 
-/**
- * Plugin entry point.
- *
- * Bootstrap order:
- *  1. Load config
- *  2. Build Guice injector
- *  3. Initialise DB schema
- *  4. Load all public warps into cache
- *  5. Register commands & listeners
- */
 public final class SwarpPlugin extends JavaPlugin {
 
     private Injector injector;
@@ -39,39 +31,34 @@ public final class SwarpPlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
 
-        // ── 1. Config ──────────────────────────────────────────────────────────
         PluginConfig pluginConfig = new PluginConfig();
         pluginConfig.reload(getConfig());
 
-        // ── 2. Guice ───────────────────────────────────────────────────────────
         injector = Guice.createInjector(new SwarpModule(this, pluginConfig));
 
-        // ── 3. Database ────────────────────────────────────────────────────────
         databaseManager = injector.getInstance(DatabaseManager.class);
         try {
             injector.getInstance(SchemaInitializer.class).initialize();
         } catch (SQLException e) {
-            getLogger().log(Level.SEVERE, "Failed to initialise database schema — disabling plugin!", e);
+            getLogger().log(Level.SEVERE, "Datenbankschema-Initialisierung fehlgeschlagen — deaktiviere Plugin!", e);
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
-        // ── 4. Warm cache with all public warps ────────────────────────────────
+        // Warm cache
         WarpRepository repository = injector.getInstance(WarpRepository.class);
         WarpCacheService cache    = injector.getInstance(WarpCacheService.class);
-
         getServer().getScheduler().runTaskAsynchronously(this, () -> {
             try {
                 cache.putAll(repository.findAllPublic());
-                getLogger().info("[SWarp] Loaded " + cache.getAllPublic().size() + " public warps into cache.");
+                getLogger().info("[SWarp] " + cache.getAllPublic().size() + " Warps geladen.");
             } catch (SQLException e) {
-                getLogger().log(Level.WARNING, "Failed to pre-load warp cache", e);
+                getLogger().log(Level.WARNING, "Cache konnte nicht vorgeladen werden", e);
             }
         });
 
-        // ── 5. Commands ────────────────────────────────────────────────────────
+        // Commands
         workerFactory = injector.getInstance(WarpWorkerFactory.class);
-
         CommandDispatcher dispatcher = new CommandDispatcher(getLogger());
         dispatcher.register(injector.getInstance(SwarpCommandHandler.class));
 
@@ -82,17 +69,20 @@ public final class SwarpPlugin extends JavaPlugin {
             cmd.setTabCompleter(executor);
         }
 
-        // ── 6. Listeners ───────────────────────────────────────────────────────
-        getServer().getPluginManager().registerEvents(
-                injector.getInstance(PlayerJoinListener.class), this);
+        // Listeners
+        getServer().getPluginManager().registerEvents(injector.getInstance(PlayerJoinListener.class), this);
+        getServer().getPluginManager().registerEvents(injector.getInstance(WarpSignListener.class), this);
 
-        getLogger().info("[SWarp] Plugin enabled successfully. ✦");
+        // Expire worker (runs every 24h)
+        injector.getInstance(WarpExpireWorker.class).schedule();
+
+        getLogger().info("[SWarp] Plugin aktiviert. ✦");
     }
 
     @Override
     public void onDisable() {
         if (workerFactory != null) workerFactory.shutdown();
         if (databaseManager != null) databaseManager.shutdown();
-        getLogger().info("[SWarp] Plugin disabled. Goodbye.");
+        getLogger().info("[SWarp] Plugin deaktiviert.");
     }
 }

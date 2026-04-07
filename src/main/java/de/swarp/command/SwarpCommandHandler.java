@@ -4,24 +4,29 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import de.swarp.annotations.RequiresPermission;
 import de.swarp.annotations.WarpCommand;
+import de.swarp.database.repository.WarpRepository;
 import de.swarp.factory.WarpTask;
 import de.swarp.factory.WarpWorkerFactory;
 import de.swarp.model.PlayerWarp;
+import de.swarp.model.WarpCategory;
 import de.swarp.service.WarpCacheService;
+import de.swarp.service.WarpCooldownService;
+import de.swarp.guice.PluginConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 
+import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 
-/**
- * Contains all /swarp sub-commands as annotated methods.
- * Discovered and routed automatically by {@link CommandDispatcher}.
- */
 @Singleton
 public class SwarpCommandHandler {
 
@@ -29,11 +34,24 @@ public class SwarpCommandHandler {
 
     private final WarpWorkerFactory workerFactory;
     private final WarpCacheService cache;
+    private final WarpCooldownService cooldown;
+    private final WarpRepository repository;
+    private final PluginConfig config;
+    private final JavaPlugin plugin;
 
     @Inject
-    public SwarpCommandHandler(WarpWorkerFactory workerFactory, WarpCacheService cache) {
+    public SwarpCommandHandler(WarpWorkerFactory workerFactory,
+                                WarpCacheService cache,
+                                WarpCooldownService cooldown,
+                                WarpRepository repository,
+                                PluginConfig config,
+                                JavaPlugin plugin) {
         this.workerFactory = workerFactory;
         this.cache = cache;
+        this.cooldown = cooldown;
+        this.repository = repository;
+        this.config = config;
+        this.plugin = plugin;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -43,13 +61,10 @@ public class SwarpCommandHandler {
     @WarpCommand(value = "create", minArgs = 1, usage = "create <name>", permission = "swarp.create")
     public void create(Player player, String[] args) {
         String name = args[0];
-
         if (!name.matches(NAME_PATTERN)) {
-            player.sendMessage(Component.text(
-                    "✗ Invalid name. Use 3–24 alphanumeric characters.", NamedTextColor.RED));
+            player.sendMessage(Component.text("✗ Invalid name. Use 3–24 alphanumeric characters.", NamedTextColor.RED));
             return;
         }
-
         workerFactory.submit(WarpTask.create(player, name));
     }
 
@@ -60,19 +75,14 @@ public class SwarpCommandHandler {
     @WarpCommand(value = "delete", minArgs = 1, usage = "delete <name>")
     @RequiresPermission("swarp.delete")
     public void delete(Player player, String[] args) {
-        String name = args[0];
-        Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), name);
-
-        // Admins can delete any warp
+        Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), args[0]);
         if (warp.isEmpty() && player.hasPermission("swarp.admin")) {
-            warp = cache.getPublicByName(name);
+            warp = cache.getPublicByName(args[0]);
         }
-
         if (warp.isEmpty()) {
-            player.sendMessage(Component.text("✗ No warp named \"" + name + "\" found.", NamedTextColor.RED));
+            player.sendMessage(Component.text("✗ No warp named \"" + args[0] + "\" found.", NamedTextColor.RED));
             return;
         }
-
         workerFactory.submit(WarpTask.delete(player, warp.get()));
     }
 
@@ -82,52 +92,195 @@ public class SwarpCommandHandler {
 
     @WarpCommand(value = "tp", minArgs = 1, usage = "tp <name>", permission = "swarp.teleport")
     public void teleport(Player player, String[] args) {
-        String name = args[0];
-
-        // Check own warps first, then global
-        Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), name);
-        if (warp.isEmpty()) warp = cache.getPublicByName(name);
-
-        if (warp.isEmpty()) {
-            player.sendMessage(Component.text("✗ No public warp named \"" + name + "\" found.", NamedTextColor.RED));
+        int cd = config.getInt("warps.cooldown", 10);
+        int remaining = cooldown.getRemainingCooldown(player.getUniqueId(), cd);
+        if (remaining > 0) {
+            player.sendMessage(Component.text(
+                    "✗ Cooldown! Warte noch " + remaining + " Sekunde(n).", NamedTextColor.RED));
             return;
         }
 
+        Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), args[0]);
+        if (warp.isEmpty()) warp = cache.getPublicByName(args[0]);
+        if (warp.isEmpty()) {
+            player.sendMessage(Component.text("✗ Kein öffentlicher Warp \"" + args[0] + "\" gefunden.", NamedTextColor.RED));
+            return;
+        }
+
+        cooldown.registerTeleport(player.getUniqueId());
         workerFactory.submit(WarpTask.teleport(player, warp.get()));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // /swarp list [player]
+    // /swarp list [category]
     // ──────────────────────────────────────────────────────────────────────────
 
-    @WarpCommand(value = "list", usage = "list [player]", permission = "swarp.list")
+    @WarpCommand(value = "list", usage = "list [category]", permission = "swarp.list")
     public void list(Player player, String[] args) {
-        List<PlayerWarp> warps = cache.getAllPublic();
+        List<PlayerWarp> warps;
+
+        if (args.length > 0) {
+            WarpCategory cat = WarpCategory.fromString(args[0]);
+            warps = cache.getAllPublic().stream()
+                    .filter(w -> w.category() == cat)
+                    .toList();
+            player.sendMessage(Component.text("─── " + cat.icon + " " + cat.displayName + " Warps ───", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
+        } else {
+            warps = cache.getAllPublic();
+            player.sendMessage(Component.text("─── Öffentliche Warps (" + warps.size() + ") ───", NamedTextColor.GOLD).decorate(TextDecoration.BOLD));
+
+            // Category overview line
+            player.sendMessage(buildCategoryBar());
+        }
 
         if (warps.isEmpty()) {
-            player.sendMessage(Component.text("No public warps exist yet. Create one with /swarp create!", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Keine Warps gefunden.", NamedTextColor.GRAY));
             return;
         }
 
-        player.sendMessage(Component.text("─── Public Warps (" + warps.size() + ") ───", NamedTextColor.GOLD)
-                .decorate(TextDecoration.BOLD));
-
         warps.stream()
                 .sorted((a, b) -> Long.compare(b.visits(), a.visits()))
-                .forEach(w -> {
-                    Component line = Component.text("  ✦ ", NamedTextColor.GOLD)
-                            .append(Component.text(w.name(), NamedTextColor.YELLOW)
-                                    .decorate(TextDecoration.BOLD)
-                                    .clickEvent(ClickEvent.runCommand("/swarp tp " + w.name()))
-                                    .hoverEvent(HoverEvent.showText(
-                                            Component.text("Click to teleport!\n", NamedTextColor.GREEN)
-                                            .append(Component.text("Owner: " + w.ownerName() + "\n", NamedTextColor.GRAY))
-                                            .append(Component.text("Visits: " + w.visits(), NamedTextColor.AQUA))
-                                    )))
-                            .append(Component.text(" by " + w.ownerName(), NamedTextColor.GRAY))
-                            .append(Component.text(" [" + w.visits() + " visits]", NamedTextColor.DARK_GRAY));
-                    player.sendMessage(line);
-                });
+                .forEach(w -> player.sendMessage(
+                        Component.text("  " + w.category().icon + " ", NamedTextColor.GRAY)
+                        .append(Component.text(w.name(), NamedTextColor.YELLOW).decorate(TextDecoration.BOLD)
+                                .clickEvent(ClickEvent.runCommand("/swarp tp " + w.name()))
+                                .hoverEvent(HoverEvent.showText(
+                                        Component.text("Klicken zum Teleportieren!\n", NamedTextColor.GREEN)
+                                        .append(Component.text("Owner: " + w.ownerName() + "\n", NamedTextColor.GRAY))
+                                        .append(Component.text("Besuche: " + w.visits() + "\n", NamedTextColor.AQUA))
+                                        .append(Component.text(w.description().isEmpty() ? "" : w.description(), NamedTextColor.WHITE))
+                                )))
+                        .append(Component.text(" by " + w.ownerName(), NamedTextColor.GRAY))
+                        .append(Component.text(" [" + w.visits() + "]", NamedTextColor.DARK_GRAY))
+                ));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // /swarp search <keyword>
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @WarpCommand(value = "search", minArgs = 1, usage = "search <keyword>", permission = "swarp.list")
+    public void search(Player player, String[] args) {
+        String keyword = args[0].toLowerCase();
+
+        // Search in cache first (fast)
+        List<PlayerWarp> results = cache.getAllPublic().stream()
+                .filter(w -> w.name().toLowerCase().contains(keyword)
+                        || w.description().toLowerCase().contains(keyword))
+                .sorted((a, b) -> Long.compare(b.visits(), a.visits()))
+                .limit(10)
+                .toList();
+
+        if (results.isEmpty()) {
+            player.sendMessage(Component.text("✗ Keine Warps für \"" + keyword + "\" gefunden.", NamedTextColor.RED));
+            return;
+        }
+
+        player.sendMessage(Component.text("─── Suchergebnisse: \"" + keyword + "\" (" + results.size() + ") ───", NamedTextColor.GOLD));
+        results.forEach(w -> player.sendMessage(
+                Component.text("  " + w.category().icon + " ", NamedTextColor.GRAY)
+                .append(Component.text(w.name(), NamedTextColor.YELLOW)
+                        .clickEvent(ClickEvent.runCommand("/swarp tp " + w.name())))
+                .append(Component.text(" — " + w.ownerName(), NamedTextColor.GRAY))
+        ));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // /swarp rename <old> <new>
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @WarpCommand(value = "rename", minArgs = 2, usage = "rename <alt> <neu>")
+    public void rename(Player player, String[] args) {
+        String oldName = args[0];
+        String newName = args[1];
+
+        if (!newName.matches(NAME_PATTERN)) {
+            player.sendMessage(Component.text("✗ Ungültiger Name.", NamedTextColor.RED));
+            return;
+        }
+
+        Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), oldName);
+        if (warp.isEmpty()) {
+            player.sendMessage(Component.text("✗ Kein Warp namens \"" + oldName + "\" gefunden.", NamedTextColor.RED));
+            return;
+        }
+
+        PlayerWarp updated = warp.get().withName(newName);
+        CompletableFuture.runAsync(() -> {
+            try {
+                repository.updateName(updated.id(), newName);
+                cache.remove(warp.get());
+                cache.put(updated);
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("✔ Warp umbenannt: ", NamedTextColor.GREEN)
+                                .append(Component.text(oldName, NamedTextColor.YELLOW))
+                                .append(Component.text(" → ", NamedTextColor.GRAY))
+                                .append(Component.text(newName, NamedTextColor.GOLD))));
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Rename failed", e);
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // /swarp desc <name> <beschreibung...>
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @WarpCommand(value = "desc", minArgs = 2, usage = "desc <name> <text>")
+    public void desc(Player player, String[] args) {
+        Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), args[0]);
+        if (warp.isEmpty()) {
+            player.sendMessage(Component.text("✗ Kein eigener Warp namens \"" + args[0] + "\".", NamedTextColor.RED));
+            return;
+        }
+
+        String desc = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+        if (desc.length() > 128) {
+            player.sendMessage(Component.text("✗ Beschreibung max. 128 Zeichen.", NamedTextColor.RED));
+            return;
+        }
+
+        PlayerWarp updated = warp.get().withDescription(desc);
+        CompletableFuture.runAsync(() -> {
+            try {
+                repository.updateDescription(updated.id(), desc);
+                cache.remove(warp.get());
+                cache.put(updated);
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("✔ Beschreibung gesetzt: ", NamedTextColor.GREEN)
+                                .append(Component.text(desc, NamedTextColor.WHITE))));
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Desc update failed", e);
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // /swarp category <name> <kategorie>
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @WarpCommand(value = "category", minArgs = 2, usage = "category <name> <shop|farm|pvp|base|public|other>")
+    public void category(Player player, String[] args) {
+        Optional<PlayerWarp> warp = cache.getByOwnerAndName(player.getUniqueId(), args[0]);
+        if (warp.isEmpty()) {
+            player.sendMessage(Component.text("✗ Kein eigener Warp namens \"" + args[0] + "\".", NamedTextColor.RED));
+            return;
+        }
+
+        WarpCategory cat = WarpCategory.fromString(args[1]);
+        PlayerWarp updated = warp.get().withCategory(cat);
+        CompletableFuture.runAsync(() -> {
+            try {
+                repository.updateCategory(updated.id(), cat);
+                cache.remove(warp.get());
+                cache.put(updated);
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("✔ Kategorie gesetzt: ", NamedTextColor.GREEN)
+                                .append(Component.text(cat.icon + " " + cat.displayName, NamedTextColor.GOLD))));
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Category update failed", e);
+            }
+        });
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -137,21 +290,20 @@ public class SwarpCommandHandler {
     @WarpCommand(value = "info", minArgs = 1, usage = "info <name>")
     public void info(Player player, String[] args) {
         Optional<PlayerWarp> warp = cache.getPublicByName(args[0]);
-
         if (warp.isEmpty()) {
-            player.sendMessage(Component.text("✗ Warp not found.", NamedTextColor.RED));
+            player.sendMessage(Component.text("✗ Warp nicht gefunden.", NamedTextColor.RED));
             return;
         }
-
         PlayerWarp w = warp.get();
         player.sendMessage(Component.text("─── Warp Info ───", NamedTextColor.GOLD));
-        player.sendMessage(info("Name",    w.name()));
-        player.sendMessage(info("Owner",   w.ownerName()));
-        player.sendMessage(info("Visits",  String.valueOf(w.visits())));
-        player.sendMessage(info("World",   w.location().getWorld().getName()));
-        player.sendMessage(info("Created", w.createdAt().toString().substring(0, 10)));
+        player.sendMessage(field("Name",      w.name()));
+        player.sendMessage(field("Owner",     w.ownerName()));
+        player.sendMessage(field("Kategorie", w.category().icon + " " + w.category().displayName));
+        player.sendMessage(field("Besuche",   String.valueOf(w.visits())));
+        player.sendMessage(field("Welt",      w.location().getWorld().getName()));
+        player.sendMessage(field("Erstellt",  w.createdAt().toString().substring(0, 10)));
         if (!w.description().isEmpty()) {
-            player.sendMessage(info("Desc", w.description()));
+            player.sendMessage(field("Beschreibung", w.description()));
         }
     }
 
@@ -162,21 +314,18 @@ public class SwarpCommandHandler {
     @WarpCommand(value = "mywarps", usage = "mywarps")
     public void mywarps(Player player, String[] args) {
         List<PlayerWarp> warps = cache.getByOwner(player.getUniqueId());
-
         if (warps.isEmpty()) {
-            player.sendMessage(Component.text(
-                    "You have no warps yet. Use /swarp create <name> to make one!", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Du hast noch keine Warps. Nutze /swarp create <name>!", NamedTextColor.GRAY));
             return;
         }
-
-        player.sendMessage(Component.text("─── Your Warps (" + warps.size() + ") ───", NamedTextColor.GOLD));
+        player.sendMessage(Component.text("─── Deine Warps (" + warps.size() + ") ───", NamedTextColor.GOLD));
         warps.forEach(w -> player.sendMessage(
-                Component.text("  ✦ ", NamedTextColor.GOLD)
+                Component.text("  " + w.category().icon + " ", NamedTextColor.GRAY)
                 .append(Component.text(w.name(), NamedTextColor.YELLOW))
-                .append(Component.text(" — " + w.visits() + " visits", NamedTextColor.GRAY))
-                .append(Component.text("  [delete]", NamedTextColor.RED)
+                .append(Component.text(" — " + w.visits() + " Besuche", NamedTextColor.GRAY))
+                .append(Component.text("  [löschen]", NamedTextColor.RED)
                         .clickEvent(ClickEvent.runCommand("/swarp delete " + w.name()))
-                        .hoverEvent(HoverEvent.showText(Component.text("Click to delete this warp", NamedTextColor.RED))))
+                        .hoverEvent(HoverEvent.showText(Component.text("Klicken zum Löschen", NamedTextColor.RED))))
         ));
     }
 
@@ -184,8 +333,20 @@ public class SwarpCommandHandler {
     // Helper
     // ──────────────────────────────────────────────────────────────────────────
 
-    private Component info(String label, String value) {
+    private Component field(String label, String value) {
         return Component.text("  " + label + ": ", NamedTextColor.GRAY)
                 .append(Component.text(value, NamedTextColor.WHITE));
+    }
+
+    private Component buildCategoryBar() {
+        Component bar = Component.text("  Kategorien: ", NamedTextColor.GRAY);
+        for (WarpCategory cat : WarpCategory.values()) {
+            bar = bar.append(
+                    Component.text("[" + cat.icon + " " + cat.displayName + "] ", NamedTextColor.AQUA)
+                    .clickEvent(ClickEvent.runCommand("/swarp list " + cat.name().toLowerCase()))
+                    .hoverEvent(HoverEvent.showText(Component.text("Nur " + cat.displayName + " anzeigen")))
+            );
+        }
+        return bar;
     }
 }

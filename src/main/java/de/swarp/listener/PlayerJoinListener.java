@@ -15,10 +15,6 @@ import java.sql.SQLException;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 
-/**
- * Warms the per-player warp cache when a player joins
- * and cleans it up on quit.
- */
 @Singleton
 public class PlayerJoinListener implements Listener {
 
@@ -40,17 +36,23 @@ public class PlayerJoinListener implements Listener {
         var uuid = event.getPlayer().getUniqueId();
         CompletableFuture.runAsync(() -> {
             try {
-                var warps = repository.findByOwner(uuid);
-                cache.putAll(warps);
+                // Warm cache
+                cache.putAll(repository.findByOwner(uuid));
+                repository.updateLastSeen(uuid);
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.WARNING,
-                        "Failed to load warps for " + event.getPlayer().getName(), e);
+                        "Failed to load warps / update last_seen for " + event.getPlayer().getName(), e);
             }
         });
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        cache.invalidatePlayer(event.getPlayer().getUniqueId());
+        var uuid = event.getPlayer().getUniqueId();
+        cache.invalidatePlayer(uuid);
+        CompletableFuture.runAsync(() -> {
+            try { repository.updateLastSeen(uuid); }
+            catch (SQLException e) { /* non-critical */ }
+        });
     }
 }

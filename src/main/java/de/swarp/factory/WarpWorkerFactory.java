@@ -45,11 +45,7 @@ public class WarpWorkerFactory {
         this.cacheService = cacheService;
         this.effectService = effectService;
         this.config = config;
-
-        // Virtual threads — one per task, scales naturally, no pool starvation
         this.workerPool = Executors.newVirtualThreadPerTaskExecutor();
-
-        // Dedicated scheduler for countdown timers
         this.scheduler = Executors.newScheduledThreadPool(
                 2,
                 r -> Thread.ofVirtual().name("swarp-scheduler").unstarted(r)

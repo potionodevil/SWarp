@@ -5,6 +5,7 @@ import com.google.inject.Singleton;
 import de.swarp.annotations.AsyncQuery;
 import de.swarp.database.DatabaseManager;
 import de.swarp.model.PlayerWarp;
+import de.swarp.model.WarpCategory;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -16,16 +17,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Data Access Object for {@link PlayerWarp}.
- * All methods MUST be called from an async thread.
- */
 @Singleton
 public class WarpRepository {
 
     private static final String INSERT_WARP =
-            "INSERT INTO swarp_warps (owner_uuid, owner_name, name, world, x, y, z, yaw, pitch, description, public_warp) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            "INSERT INTO swarp_warps (owner_uuid, owner_name, name, world, x, y, z, yaw, pitch, description, public_warp, category) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SELECT_BY_OWNER =
             "SELECT * FROM swarp_warps WHERE owner_uuid = ?";
@@ -36,6 +33,12 @@ public class WarpRepository {
     private static final String SELECT_ALL_PUBLIC =
             "SELECT * FROM swarp_warps WHERE public_warp = 1 ORDER BY visits DESC";
 
+    private static final String SELECT_BY_CATEGORY =
+            "SELECT * FROM swarp_warps WHERE public_warp = 1 AND category = ? ORDER BY visits DESC";
+
+    private static final String SELECT_SEARCH =
+            "SELECT * FROM swarp_warps WHERE public_warp = 1 AND (name LIKE ? OR description LIKE ?) ORDER BY visits DESC LIMIT 20";
+
     private static final String SELECT_BY_WARP_NAME =
             "SELECT * FROM swarp_warps WHERE name = ? AND public_warp = 1 LIMIT 1";
 
@@ -45,8 +48,26 @@ public class WarpRepository {
     private static final String UPDATE_VISITS =
             "UPDATE swarp_warps SET visits = visits + 1 WHERE id = ?";
 
+    private static final String UPDATE_DESCRIPTION =
+            "UPDATE swarp_warps SET description = ? WHERE id = ?";
+
+    private static final String UPDATE_CATEGORY =
+            "UPDATE swarp_warps SET category = ? WHERE id = ?";
+
+    private static final String UPDATE_NAME =
+            "UPDATE swarp_warps SET name = ? WHERE id = ?";
+
     private static final String COUNT_BY_OWNER =
             "SELECT COUNT(*) FROM swarp_warps WHERE owner_uuid = ?";
+
+    private static final String UPSERT_LAST_SEEN =
+            "INSERT INTO swarp_player_activity (uuid, last_seen) VALUES (?, NOW()) " +
+            "ON DUPLICATE KEY UPDATE last_seen = NOW()";
+
+    private static final String SELECT_EXPIRED_OWNERS =
+            "SELECT DISTINCT owner_uuid FROM swarp_warps w " +
+            "LEFT JOIN swarp_player_activity a ON w.owner_uuid = a.uuid " +
+            "WHERE a.last_seen IS NULL OR a.last_seen < DATE_SUB(NOW(), INTERVAL ? DAY)";
 
     private final DatabaseManager db;
 
@@ -56,10 +77,10 @@ public class WarpRepository {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Write Operations
+    // Write
     // ──────────────────────────────────────────────────────────────────────────
 
-    @AsyncQuery("Insert a new warp record and return the generated ID")
+    @AsyncQuery("Insert a new warp")
     public int insert(PlayerWarp warp) throws SQLException {
         try (Connection con = db.getConnection();
              PreparedStatement ps = con.prepareStatement(INSERT_WARP, Statement.RETURN_GENERATED_KEYS)) {
@@ -75,19 +96,49 @@ public class WarpRepository {
             ps.setFloat(9, loc.getPitch());
             ps.setString(10, warp.description());
             ps.setBoolean(11, warp.publicWarp());
+            ps.setString(12, warp.category().name());
             ps.executeUpdate();
-
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : -1;
             }
         }
     }
 
-    @AsyncQuery("Increment visit counter for warp by ID")
+    @AsyncQuery("Increment visit counter")
     public void incrementVisits(int warpId) throws SQLException {
         try (Connection con = db.getConnection();
              PreparedStatement ps = con.prepareStatement(UPDATE_VISITS)) {
             ps.setInt(1, warpId);
+            ps.executeUpdate();
+        }
+    }
+
+    @AsyncQuery("Update description")
+    public void updateDescription(int warpId, String description) throws SQLException {
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(UPDATE_DESCRIPTION)) {
+            ps.setString(1, description);
+            ps.setInt(2, warpId);
+            ps.executeUpdate();
+        }
+    }
+
+    @AsyncQuery("Update category")
+    public void updateCategory(int warpId, WarpCategory category) throws SQLException {
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(UPDATE_CATEGORY)) {
+            ps.setString(1, category.name());
+            ps.setInt(2, warpId);
+            ps.executeUpdate();
+        }
+    }
+
+    @AsyncQuery("Rename a warp")
+    public void updateName(int warpId, String newName) throws SQLException {
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(UPDATE_NAME)) {
+            ps.setString(1, newName);
+            ps.setInt(2, warpId);
             ps.executeUpdate();
         }
     }
@@ -101,11 +152,20 @@ public class WarpRepository {
         }
     }
 
+    @AsyncQuery("Upsert last-seen timestamp for a player")
+    public void updateLastSeen(UUID uuid) throws SQLException {
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(UPSERT_LAST_SEEN)) {
+            ps.setString(1, uuid.toString());
+            ps.executeUpdate();
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
-    // Read Operations
+    // Read
     // ──────────────────────────────────────────────────────────────────────────
 
-    @AsyncQuery("Load all warps belonging to a player")
+    @AsyncQuery("Load all warps for a player")
     public List<PlayerWarp> findByOwner(UUID ownerUuid) throws SQLException {
         List<PlayerWarp> result = new ArrayList<>();
         try (Connection con = db.getConnection();
@@ -118,7 +178,7 @@ public class WarpRepository {
         return result;
     }
 
-    @AsyncQuery("Find a specific warp by owner UUID and warp name")
+    @AsyncQuery("Find warp by owner + name")
     public Optional<PlayerWarp> findByOwnerAndName(UUID ownerUuid, String name) throws SQLException {
         try (Connection con = db.getConnection();
              PreparedStatement ps = con.prepareStatement(SELECT_BY_NAME_AND_OWNER)) {
@@ -130,7 +190,7 @@ public class WarpRepository {
         }
     }
 
-    @AsyncQuery("Load all public warps sorted by visits descending")
+    @AsyncQuery("Load all public warps")
     public List<PlayerWarp> findAllPublic() throws SQLException {
         List<PlayerWarp> result = new ArrayList<>();
         try (Connection con = db.getConnection();
@@ -141,7 +201,35 @@ public class WarpRepository {
         return result;
     }
 
-    @AsyncQuery("Find first public warp matching a name (global search)")
+    @AsyncQuery("Filter public warps by category")
+    public List<PlayerWarp> findByCategory(WarpCategory category) throws SQLException {
+        List<PlayerWarp> result = new ArrayList<>();
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(SELECT_BY_CATEGORY)) {
+            ps.setString(1, category.name());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(mapRow(rs));
+            }
+        }
+        return result;
+    }
+
+    @AsyncQuery("Search warps by keyword in name and description")
+    public List<PlayerWarp> search(String keyword) throws SQLException {
+        String pattern = "%" + keyword + "%";
+        List<PlayerWarp> result = new ArrayList<>();
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(SELECT_SEARCH)) {
+            ps.setString(1, pattern);
+            ps.setString(2, pattern);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(mapRow(rs));
+            }
+        }
+        return result;
+    }
+
+    @AsyncQuery("Find public warp by name")
     public Optional<PlayerWarp> findPublicByName(String name) throws SQLException {
         try (Connection con = db.getConnection();
              PreparedStatement ps = con.prepareStatement(SELECT_BY_WARP_NAME)) {
@@ -152,7 +240,7 @@ public class WarpRepository {
         }
     }
 
-    @AsyncQuery("Count how many warps a player owns")
+    @AsyncQuery("Count warps owned by player")
     public int countByOwner(UUID ownerUuid) throws SQLException {
         try (Connection con = db.getConnection();
              PreparedStatement ps = con.prepareStatement(COUNT_BY_OWNER)) {
@@ -163,20 +251,31 @@ public class WarpRepository {
         }
     }
 
+    @AsyncQuery("Find owner UUIDs inactive for more than N days")
+    public List<UUID> findExpiredOwners(int daysInactive) throws SQLException {
+        List<UUID> result = new ArrayList<>();
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(SELECT_EXPIRED_OWNERS)) {
+            ps.setInt(1, daysInactive);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(UUID.fromString(rs.getString("owner_uuid")));
+            }
+        }
+        return result;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Mapping
     // ──────────────────────────────────────────────────────────────────────────
 
     private PlayerWarp mapRow(ResultSet rs) throws SQLException {
         World world = Bukkit.getWorld(rs.getString("world"));
-        Location loc = new Location(
-                world,
-                rs.getDouble("x"),
-                rs.getDouble("y"),
-                rs.getDouble("z"),
-                rs.getFloat("yaw"),
-                rs.getFloat("pitch")
-        );
+        Location loc = new Location(world,
+                rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"),
+                rs.getFloat("yaw"), rs.getFloat("pitch"));
+
+        String categoryStr = rs.getString("category");
+
         return PlayerWarp.builder()
                 .id(rs.getInt("id"))
                 .ownerUuid(UUID.fromString(rs.getString("owner_uuid")))
@@ -187,6 +286,7 @@ public class WarpRepository {
                 .publicWarp(rs.getBoolean("public_warp"))
                 .visits(rs.getLong("visits"))
                 .createdAt(rs.getTimestamp("created_at").toInstant())
+                .category(WarpCategory.fromString(categoryStr))
                 .build();
     }
 }

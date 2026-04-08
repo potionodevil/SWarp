@@ -22,6 +22,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.sql.SQLException;
 import java.util.logging.Level;
 
+/**
+ * @author Rene for NitroMC
+ * @version 1.0.0
+ */
+
 public final class SwarpPlugin extends JavaPlugin {
 
     private Injector injector;
@@ -57,8 +62,6 @@ public final class SwarpPlugin extends JavaPlugin {
                 getLogger().log(Level.WARNING, "Cache-Vorladung fehlgeschlagen", e);
             }
         });
-
-        // Commands
         workerFactory = injector.getInstance(WarpWorkerFactory.class);
         CommandDispatcher dispatcher = new CommandDispatcher(getLogger());
         dispatcher.register(injector.getInstance(SwarpCommandHandler.class));
@@ -70,14 +73,9 @@ public final class SwarpPlugin extends JavaPlugin {
             cmd.setTabCompleter(executor);
         }
 
-        // Listeners
         getServer().getPluginManager().registerEvents(injector.getInstance(PlayerJoinListener.class), this);
         getServer().getPluginManager().registerEvents(injector.getInstance(WarpSignListener.class), this);
-
-        // Expire worker
         injector.getInstance(WarpExpireWorker.class).schedule();
-
-        // PlaceholderAPI
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
             injector.getInstance(SwarpPlaceholderExpansion.class).register();
             getLogger().info("[SWarp] PlaceholderAPI-Integration aktiviert.");

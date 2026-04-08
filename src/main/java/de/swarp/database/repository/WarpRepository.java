@@ -83,9 +83,6 @@ public class WarpRepository {
         this.db = db;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Write
-    // ──────────────────────────────────────────────────────────────────────────
 
     @AsyncQuery("Insert a new warp")
     public int insert(PlayerWarp warp) throws SQLException {
@@ -194,9 +191,6 @@ public class WarpRepository {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Read
-    // ──────────────────────────────────────────────────────────────────────────
 
     @AsyncQuery("Load all warps for a player")
     public List<PlayerWarp> findByOwner(UUID ownerUuid) throws SQLException {
@@ -296,10 +290,6 @@ public class WarpRepository {
         }
         return result;
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Mapping
-    // ──────────────────────────────────────────────────────────────────────────
 
     private PlayerWarp mapRow(ResultSet rs) throws SQLException {
         World world = Bukkit.getWorld(rs.getString("world"));

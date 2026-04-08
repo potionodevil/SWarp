@@ -12,16 +12,6 @@ import java.util.List;
 
 /**
  * PlaceholderAPI expansion for SWarp.
- *
- * Top-Warps (sorted by visits):
- *   %swarps_top_name_1%      → name of #1 warp
- *   %swarps_top_visits_1%    → visit count of #1 warp
- *   %swarps_top_owner_1%     → owner of #1 warp
- *   %swarps_top_created_1%   → creation date of #1 warp
- *
- * Player-Warps (by player name, sorted by visits):
- *   %swarps_WesleyxCraft_name_1%    → name of player's #1 warp
- *   %swarps_WesleyxCraft_visits_1%  → visits of player's #1 warp
  */
 @Singleton
 public class SwarpPlaceholderExpansion extends PlaceholderExpansion {
@@ -64,12 +54,7 @@ public class SwarpPlaceholderExpansion extends PlaceholderExpansion {
         return handlePlayer(params);
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Top Warps
-    // ──────────────────────────────────────────────────────────────────────────
-
     private String handleTop(String params) {
-        // params = "name_1", "visits_3", etc.
         int lastUnderscore = params.lastIndexOf('_');
         if (lastUnderscore == -1) return null;
 

@@ -58,10 +58,6 @@ public class WarpWorker implements Runnable {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Teleport
-    // ──────────────────────────────────────────────────────────────────────────
-
     private void handleTeleport() {
         Player player = task.player();
         if (!player.isOnline()) return;
@@ -107,10 +103,6 @@ public class WarpWorker implements Runnable {
             }),
         (long) delay * 1000L, TimeUnit.MILLISECONDS);
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Create
-    // ──────────────────────────────────────────────────────────────────────────
 
     private void handleCreate() {
         Player player = task.player();
@@ -177,9 +169,6 @@ public class WarpWorker implements Runnable {
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Delete
-    // ──────────────────────────────────────────────────────────────────────────
 
     private void handleDelete() {
         Player player = task.player();

@@ -54,9 +54,6 @@ public class SwarpCommandHandler {
         this.plugin = plugin;
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp create <n>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "create", minArgs = 1, usage = "create <n>", permission = "swarp.create")
     public void create(Player player, String[] args) {
@@ -67,9 +64,6 @@ public class SwarpCommandHandler {
         workerFactory.submit(WarpTask.create(player, args[0]));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp delete <n>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "delete", minArgs = 1, usage = "delete <n>")
     @RequiresPermission("swarp.delete")
@@ -84,9 +78,6 @@ public class SwarpCommandHandler {
         workerFactory.submit(WarpTask.delete(player, warp.get()));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp update <n>  — setzt Warp-Position auf aktuelle Spielerposition
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "update", minArgs = 1, usage = "update <n>")
     public void update(Player player, String[] args) {
@@ -125,9 +116,6 @@ public class SwarpCommandHandler {
         });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp tp <n>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "tp", minArgs = 1, usage = "tp <n>", permission = "swarp.teleport")
     public void teleport(Player player, String[] args) {
@@ -146,9 +134,6 @@ public class SwarpCommandHandler {
         workerFactory.submit(WarpTask.teleport(player, warp.get()));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp info <n>  — config-steuerbare Ausgabe
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "info", minArgs = 1, usage = "info <n>")
     public void info(Player player, String[] args) {
@@ -176,9 +161,6 @@ public class SwarpCommandHandler {
             player.sendMessage(field("Beschreibung", w.description()));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp list [category]
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "list", usage = "list [category]", permission = "swarp.list")
     public void list(Player player, String[] args) {
@@ -209,9 +191,6 @@ public class SwarpCommandHandler {
                 ));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp search <keyword>
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "search", minArgs = 1, usage = "search <keyword>", permission = "swarp.list")
     public void search(Player player, String[] args) {
@@ -233,9 +212,6 @@ public class SwarpCommandHandler {
         ));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // /swarp rename / desc / category / expire / mywarps
-    // ──────────────────────────────────────────────────────────────────────────
 
     @WarpCommand(value = "rename", minArgs = 2, usage = "rename <alt> <neu>")
     public void rename(Player player, String[] args) {
@@ -333,9 +309,6 @@ public class SwarpCommandHandler {
         ));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Helper
-    // ──────────────────────────────────────────────────────────────────────────
 
     private Component field(String label, String value) {
         return Component.text("  " + label + ": ", NamedTextColor.GRAY)

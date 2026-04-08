@@ -5,6 +5,7 @@ import de.swarp.effects.WarpEffectService;
 import de.swarp.guice.PluginConfig;
 import de.swarp.model.PlayerWarp;
 import de.swarp.service.WarpCacheService;
+import de.swarp.service.WarpPermissionService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
@@ -19,17 +20,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
-/**
- * Executes one {@link WarpTask}.
- * Workers are created by {@link WarpWorkerFactory} and are NOT singletons —
- * each task gets its own worker instance (Factory-Worker pattern).
- *
- * Flow for TELEPORT:
- *  1. Async: validate player / warp still exist
- *  2. Async: show countdown titles via scheduled executor
- *  3. Back on main thread: teleport + play effects
- *  4. Async: increment visit counter in DB
- */
 public class WarpWorker implements Runnable {
 
     private final WarpTask task;
@@ -39,6 +29,7 @@ public class WarpWorker implements Runnable {
     private final WarpEffectService effectService;
     private final PluginConfig config;
     private final ScheduledExecutorService scheduler;
+    private final WarpPermissionService permissionService;
 
     WarpWorker(WarpTask task,
                JavaPlugin plugin,
@@ -46,7 +37,8 @@ public class WarpWorker implements Runnable {
                WarpCacheService cacheService,
                WarpEffectService effectService,
                PluginConfig config,
-               ScheduledExecutorService scheduler) {
+               ScheduledExecutorService scheduler,
+               WarpPermissionService permissionService) {
         this.task = task;
         this.plugin = plugin;
         this.repository = repository;
@@ -54,6 +46,7 @@ public class WarpWorker implements Runnable {
         this.effectService = effectService;
         this.config = config;
         this.scheduler = scheduler;
+        this.permissionService = permissionService;
     }
 
     @Override
@@ -76,7 +69,6 @@ public class WarpWorker implements Runnable {
         PlayerWarp warp = task.targetWarp();
         int delay = config.getInt("warps.teleport-delay", 3);
 
-        // Countdown titles
         for (int i = delay; i > 0; i--) {
             final int countdown = i;
             scheduler.schedule(() -> {
@@ -90,7 +82,6 @@ public class WarpWorker implements Runnable {
             }, (long)(delay - i) * 1000L, TimeUnit.MILLISECONDS);
         }
 
-        // Teleport after delay (must run on main thread)
         scheduler.schedule(() ->
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (!player.isOnline()) return;
@@ -106,12 +97,10 @@ public class WarpWorker implements Runnable {
 
                 effectService.playTeleportArrivalEffect(player);
 
-                // Update cache & DB visit counter async
                 cacheService.updateVisits(warp.withIncrementedVisits());
                 CompletableFuture.runAsync(() -> {
-                    try {
-                        repository.incrementVisits(warp.id());
-                    } catch (SQLException e) {
+                    try { repository.incrementVisits(warp.id()); }
+                    catch (SQLException e) {
                         plugin.getLogger().log(Level.WARNING, "Failed to increment visits for warp " + warp.id(), e);
                     }
                 });
@@ -127,13 +116,14 @@ public class WarpWorker implements Runnable {
         Player player = task.player();
         if (!player.isOnline()) return;
 
-        int maxWarps = config.getInt("warps.max-per-player", 3);
+        // Permission-based max warps
+        int maxWarps = permissionService.getMaxWarps(player);
 
         try {
             int owned = repository.countByOwner(player.getUniqueId());
             if (owned >= maxWarps) {
                 sendMain(() -> player.sendMessage(
-                        Component.text("✗ You can only have " + maxWarps + " warps!", NamedTextColor.RED)));
+                        Component.text("✗ Du kannst maximal " + maxWarps + " Warps erstellen!", NamedTextColor.RED)));
                 return;
             }
 
@@ -142,7 +132,7 @@ public class WarpWorker implements Runnable {
                     .isPresent();
             if (nameExists) {
                 sendMain(() -> player.sendMessage(
-                        Component.text("✗ You already have a warp named \"" + task.warpName() + "\".", NamedTextColor.RED)));
+                        Component.text("✗ Du hast bereits einen Warp namens \"" + task.warpName() + "\".", NamedTextColor.RED)));
                 return;
             }
 
@@ -159,7 +149,7 @@ public class WarpWorker implements Runnable {
                     .build();
 
             int generatedId = repository.insert(newWarp);
-            PlayerWarp savedWarp = PlayerWarp.builder()
+            PlayerWarp saved = PlayerWarp.builder()
                     .id(generatedId)
                     .ownerUuid(newWarp.ownerUuid())
                     .ownerName(newWarp.ownerName())
@@ -171,19 +161,19 @@ public class WarpWorker implements Runnable {
                     .createdAt(newWarp.createdAt())
                     .build();
 
-            cacheService.put(savedWarp);
+            cacheService.put(saved);
 
             sendMain(() -> {
                 effectService.playWarpCreatedEffect(player);
                 player.sendMessage(
                         Component.text("✔ Warp ", NamedTextColor.GREEN)
-                        .append(Component.text("\"" + savedWarp.name() + "\"", NamedTextColor.GOLD))
-                        .append(Component.text(" created!", NamedTextColor.GREEN)));
+                        .append(Component.text("\"" + saved.name() + "\"", NamedTextColor.GOLD))
+                        .append(Component.text(" erstellt!", NamedTextColor.GREEN)));
             });
 
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Error creating warp", e);
-            sendMain(() -> player.sendMessage(Component.text("✗ Database error. Please try again later.", NamedTextColor.RED)));
+            sendMain(() -> player.sendMessage(Component.text("✗ Datenbankfehler. Bitte versuche es später erneut.", NamedTextColor.RED)));
         }
     }
 
@@ -205,20 +195,16 @@ public class WarpWorker implements Runnable {
                     player.sendMessage(
                             Component.text("✔ Warp ", NamedTextColor.GREEN)
                             .append(Component.text("\"" + warp.name() + "\"", NamedTextColor.GOLD))
-                            .append(Component.text(" deleted.", NamedTextColor.GREEN)));
+                            .append(Component.text(" gelöscht.", NamedTextColor.GREEN)));
                 });
             } else {
-                sendMain(() -> player.sendMessage(Component.text("✗ Could not delete warp — not found.", NamedTextColor.RED)));
+                sendMain(() -> player.sendMessage(Component.text("✗ Warp konnte nicht gelöscht werden.", NamedTextColor.RED)));
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Error deleting warp", e);
-            sendMain(() -> player.sendMessage(Component.text("✗ Database error. Please try again.", NamedTextColor.RED)));
+            sendMain(() -> player.sendMessage(Component.text("✗ Datenbankfehler.", NamedTextColor.RED)));
         }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Helper
-    // ──────────────────────────────────────────────────────────────────────────
 
     private void sendMain(Runnable r) {
         plugin.getServer().getScheduler().runTask(plugin, r);

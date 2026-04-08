@@ -14,6 +14,7 @@ import de.swarp.guice.PluginConfig;
 import de.swarp.guice.SwarpModule;
 import de.swarp.listener.PlayerJoinListener;
 import de.swarp.listener.WarpSignListener;
+import de.swarp.service.SwarpPlaceholderExpansion;
 import de.swarp.service.WarpCacheService;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -40,7 +41,7 @@ public final class SwarpPlugin extends JavaPlugin {
         try {
             injector.getInstance(SchemaInitializer.class).initialize();
         } catch (SQLException e) {
-            getLogger().log(Level.SEVERE, "Datenbankschema-Initialisierung fehlgeschlagen — deaktiviere Plugin!", e);
+            getLogger().log(Level.SEVERE, "DB-Initialisierung fehlgeschlagen — deaktiviere Plugin!", e);
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -53,10 +54,11 @@ public final class SwarpPlugin extends JavaPlugin {
                 cache.putAll(repository.findAllPublic());
                 getLogger().info("[SWarp] " + cache.getAllPublic().size() + " Warps geladen.");
             } catch (SQLException e) {
-                getLogger().log(Level.WARNING, "Cache konnte nicht vorgeladen werden", e);
+                getLogger().log(Level.WARNING, "Cache-Vorladung fehlgeschlagen", e);
             }
         });
 
+        // Commands
         workerFactory = injector.getInstance(WarpWorkerFactory.class);
         CommandDispatcher dispatcher = new CommandDispatcher(getLogger());
         dispatcher.register(injector.getInstance(SwarpCommandHandler.class));
@@ -71,7 +73,17 @@ public final class SwarpPlugin extends JavaPlugin {
         // Listeners
         getServer().getPluginManager().registerEvents(injector.getInstance(PlayerJoinListener.class), this);
         getServer().getPluginManager().registerEvents(injector.getInstance(WarpSignListener.class), this);
+
+        // Expire worker
         injector.getInstance(WarpExpireWorker.class).schedule();
+
+        // PlaceholderAPI
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            injector.getInstance(SwarpPlaceholderExpansion.class).register();
+            getLogger().info("[SWarp] PlaceholderAPI-Integration aktiviert.");
+        } else {
+            getLogger().info("[SWarp] PlaceholderAPI nicht gefunden — Placeholders deaktiviert.");
+        }
 
         getLogger().info("[SWarp] Plugin aktiviert. ✦");
     }

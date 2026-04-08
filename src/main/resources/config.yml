@@ -8,15 +8,23 @@ database:
   connection-timeout: 30000
 
 warps:
-  max-per-player: 3
+  max-per-player: 3       # Fallback falls keine nitro.swarps.create.X Permission gesetzt
   teleport-delay: 3
-  cost: 0.0
-  cooldown: 10        # Sekunden zwischen Teleports
-  expire-days: 30     # Warps von Spielern die X Tage offline sind löschen (0 = deaktiviert)
+  cooldown: 10
+  expire-days: 30         # 0 = deaktiviert
 
 effects:
   teleport-particles: true
-  particle-type: PORTAL
   sound-on-teleport: true
   sound-on-set: true
   countdown-titles: true
+
+# Steuert welche Felder bei /swarp info angezeigt werden
+info:
+  show-owner: true
+  show-visits: true
+  show-created: true
+  show-category: true
+  show-world: true
+  show-expires: true
+  show-description: true

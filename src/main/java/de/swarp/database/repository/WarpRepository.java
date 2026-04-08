@@ -59,6 +59,9 @@ public class WarpRepository {
     private static final String UPDATE_EXPIRES =
             "UPDATE swarp_warps SET expires = ? WHERE id = ?";
 
+    private static final String UPDATE_LOCATION =
+            "UPDATE swarp_warps SET world = ?, x = ?, y = ?, z = ?, yaw = ?, pitch = ? WHERE id = ?";
+
     private static final String COUNT_BY_OWNER =
             "SELECT COUNT(*) FROM swarp_warps WHERE owner_uuid = ?";
 
@@ -66,6 +69,7 @@ public class WarpRepository {
             "INSERT INTO swarp_player_activity (uuid, last_seen) VALUES (?, NOW()) " +
             "ON DUPLICATE KEY UPDATE last_seen = NOW()";
 
+    // Only deletes warps where the player explicitly enabled expires = 1
     private static final String SELECT_EXPIRED_WARPS =
             "SELECT w.* FROM swarp_warps w " +
             "LEFT JOIN swarp_player_activity a ON w.owner_uuid = a.uuid " +
@@ -78,6 +82,10 @@ public class WarpRepository {
     public WarpRepository(DatabaseManager db) {
         this.db = db;
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Write
+    // ──────────────────────────────────────────────────────────────────────────
 
     @AsyncQuery("Insert a new warp")
     public int insert(PlayerWarp warp) throws SQLException {
@@ -110,6 +118,21 @@ public class WarpRepository {
              PreparedStatement ps = con.prepareStatement(UPDATE_EXPIRES)) {
             ps.setBoolean(1, expires);
             ps.setInt(2, warpId);
+            ps.executeUpdate();
+        }
+    }
+
+    @AsyncQuery("Update warp location to a new position")
+    public void updateLocation(int warpId, org.bukkit.Location loc) throws SQLException {
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(UPDATE_LOCATION)) {
+            ps.setString(1, loc.getWorld().getName());
+            ps.setDouble(2, loc.getX());
+            ps.setDouble(3, loc.getY());
+            ps.setDouble(4, loc.getZ());
+            ps.setFloat(5, loc.getYaw());
+            ps.setFloat(6, loc.getPitch());
+            ps.setInt(7, warpId);
             ps.executeUpdate();
         }
     }
@@ -171,6 +194,9 @@ public class WarpRepository {
         }
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Read
+    // ──────────────────────────────────────────────────────────────────────────
 
     @AsyncQuery("Load all warps for a player")
     public List<PlayerWarp> findByOwner(UUID ownerUuid) throws SQLException {
@@ -270,6 +296,10 @@ public class WarpRepository {
         }
         return result;
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Mapping
+    // ──────────────────────────────────────────────────────────────────────────
 
     private PlayerWarp mapRow(ResultSet rs) throws SQLException {
         World world = Bukkit.getWorld(rs.getString("world"));

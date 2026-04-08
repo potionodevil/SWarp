@@ -5,10 +5,13 @@ api-version: '1.21'
 description: Player Warp System for Player Shops
 author: SWarpDev
 
+softdepend:
+  - PlaceholderAPI
+
 commands:
   swarp:
     description: Main SWarp command
-    usage: /swarp <create|delete|list|teleport|info>
+    usage: /swarp <create|delete|update|tp|list|search|info|mywarps|rename|desc|category|expire>
     aliases: [warp, pw]
 
 permissions:
@@ -27,3 +30,22 @@ permissions:
   swarp.admin:
     description: Admin access (delete any warp, bypass limits)
     default: op
+
+  # Permission-based warp limits
+  # The highest matching permission wins
+  # Example: give a player nitro.swarps.create.5 to allow 5 warps
+  nitro.swarps.create.1:
+    description: Allows creating 1 warp
+    default: false
+  nitro.swarps.create.2:
+    description: Allows creating 2 warps
+    default: false
+  nitro.swarps.create.3:
+    description: Allows creating 3 warps
+    default: true
+  nitro.swarps.create.5:
+    description: Allows creating 5 warps
+    default: false
+  nitro.swarps.create.10:
+    description: Allows creating 10 warps
+    default: false

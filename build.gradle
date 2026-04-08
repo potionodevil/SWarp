@@ -5,7 +5,7 @@ plugins {
 
 group = 'de.swarp'
 version = '1.0.0'
-description = 'SWarp - Player Warp System'
+description = 'SWarp'
 
 java {
     toolchain {
@@ -16,25 +16,17 @@ java {
 repositories {
     mavenCentral()
     maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
 }
 
 dependencies {
     // Paper API
     compileOnly 'io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT'
-
-    // Google Guice (DI)
+    compileOnly 'me.clip:placeholderapi:2.11.6'
     implementation 'com.google.inject:guice:7.0.0'
-
-    // HikariCP (Connection Pooling)
     implementation 'com.zaxxer:HikariCP:5.1.0'
-
-    // MySQL Connector
     implementation 'com.mysql:mysql-connector-j:8.3.0'
-
-    // SLF4J (for HikariCP)
     implementation 'org.slf4j:slf4j-simple:2.0.12'
-
-
 }
 
 shadowJar {
@@ -43,10 +35,7 @@ shadowJar {
     relocate 'com.zaxxer.hikari', 'de.swarp.libs.hikari'
     relocate 'com.mysql', 'de.swarp.libs.mysql'
     relocate 'org.slf4j', 'de.swarp.libs.slf4j'
-    // minimize() is intentionally omitted — Guice uses heavy reflection internally
-    // and minimize() would strip classes that are only referenced at runtime.
 }
 
 tasks.build.dependsOn tasks.shadowJar
-
 compileJava.options.encoding = 'UTF-8'
